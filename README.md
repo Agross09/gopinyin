@@ -1,6 +1,8 @@
 # gopinyin
 Study AI-powered Chinese flashcards from the Terminal!
 
+![Example usage](demo.gif)
+
 ## What is this?
 This little app uses the
 - [bubbletea](https://github.com/charmbracelet/bubbletea) TUI framework for rendering a beautiful flashcard experience.
