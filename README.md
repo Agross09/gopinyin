@@ -15,3 +15,9 @@ I wanted to build a terminal UI experience with [bubbletea](https://github.com/c
 
 ## 🚧 Development Notice 🚧
 This app does not currently perform caching for its requests to OpenAI, so be mindful of your API usage.
+
+At the moment, existing cards are static and added cards exist only in memory. I'll add a database soon.
+
+## Todos:
+- Add database to actually save cards
+- Add spaced-repetition system for order of card appearance
