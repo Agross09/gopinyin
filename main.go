@@ -1,12 +1,20 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"os"
+
+	Words "chinese_vocab/words"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/joho/godotenv"
 )
 
 // Styling variables
@@ -54,92 +62,28 @@ var (
 			Bold(true)
 )
 
-// Word represents a vocabulary entry
-type Word struct {
-	Pinyin     string
-	Chinese    string
-	Definition string
-	Example    string
-}
-
 // Model represents the application state
 type model struct {
-	words         []Word
-	currentIndex  int
-	showDetails   bool
-	addingNewCard bool
-	inputs        []textinput.Model
-	focusIndex    int
+	words          []Words.Word
+	currentIndex   int
+	showDetails    bool
+	addingNewCard  bool
+	inputs         []textinput.Model
+	focusIndex     int
+	loadingExample bool // Indicates if we are currently loading an example
 }
 
-// Initial word list (placeholder for now)
-var wordList = []Word{
-	{
-		Pinyin:     "nǐ hǎo",
-		Chinese:    "你好",
-		Definition: "Hello",
-		Example:    "Nǐ hǎo, how are you?",
-	},
-	{
-		Pinyin:     "xiè xiè",
-		Chinese:    "谢谢",
-		Definition: "Thank you",
-		Example:    "Xiè xiè for your help.",
-	},
-	{
-		Pinyin:     "zǎo",
-		Chinese:    "早",
-		Definition: "Morning",
-		Example:    "Zǎo, good morning!",
-	},
-	{
-		Pinyin:     "péngyou",
-		Chinese:    "朋友",
-		Definition: "Friend",
-		Example:    "Wǒ de péngyou hěn hǎo.",
-	},
-	{
-		Pinyin:     "chī fàn",
-		Chinese:    "吃饭",
-		Definition: "Eat meal",
-		Example:    "Wǒmen qù chī fàn.",
-	},
-	{
-		Pinyin:     "hǎo",
-		Chinese:    "好",
-		Definition: "Good",
-		Example:    "Hěn hǎo, that's good!",
-	},
-	{
-		Pinyin:     "shuǐ",
-		Chinese:    "水",
-		Definition: "Water",
-		Example:    "Wǒ yào yī bēi shuǐ.",
-	},
-	{
-		Pinyin:     "ài",
-		Chinese:    "爱",
-		Definition: "Love",
-		Example:    "Wǒ ài nǐ means I love you.",
-	},
-	{
-		Pinyin:     "rén",
-		Chinese:    "人",
-		Definition: "Person",
-		Example:    "Měi gè rén dōu bù tóng.",
-	},
-	{
-		Pinyin:     "jiā",
-		Chinese:    "家",
-		Definition: "Home/Family",
-		Example:    "Wǒ de jiā zài Běijīng.",
-	},
+// ExampleMsg carries the example sentence fetched from OpenAI
+type ExampleMsg struct {
+	Index   int
+	Example string
+	Error   error
 }
 
 // Initialize the model
 func initialModel() model {
 	m := model{
-		words:         wordList,
+		words:         Words.ExampleWords,
 		currentIndex:  0,
 		showDetails:   false,
 		addingNewCard: false,
@@ -210,11 +154,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case tea.KeyEnter:
 				// Save new card if at least Chinese, Pinyin, and Definition are filled
 				if m.inputs[0].Value() != "" && m.inputs[1].Value() != "" && m.inputs[2].Value() != "" {
-					newWord := Word{
+					newWord := Words.Word{
 						Chinese:    m.inputs[0].Value(),
 						Pinyin:     m.inputs[1].Value(),
 						Definition: m.inputs[2].Value(),
-						Example:    m.inputs[3].Value(),
+						Example:    "",
 					}
 					m.words = append(m.words, newWord)
 					m.addingNewCard = false
@@ -238,6 +182,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	// Handle ExampleMsg (from OpenAI API)
+	switch msg := msg.(type) {
+	case ExampleMsg:
+		m.loadingExample = false
+		if msg.Error != nil {
+			// Handle the error
+			m.words[msg.Index].Example = fmt.Sprintf("Error: %v", msg.Error)
+		} else {
+			// Update the word's Example field
+			m.words[msg.Index].Example = msg.Example
+		}
+		return m, nil
+	}
+
 	// Normal navigation state
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -248,13 +206,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "right", "l":
 			m.currentIndex = (m.currentIndex + 1) % len(m.words)
 			m.showDetails = false
+			m.loadingExample = false
 
 		case "left", "h":
 			m.currentIndex = (m.currentIndex - 1 + len(m.words)) % len(m.words)
 			m.showDetails = false
+			m.loadingExample = false
 
 		case " ", "enter":
 			m.showDetails = !m.showDetails
+			if m.showDetails {
+				m.loadingExample = true
+				return m, fetchExample(m.words[m.currentIndex], m.currentIndex)
+			} else {
+				m.loadingExample = false
+			}
 
 		case "a":
 			// Enter add card mode
@@ -327,13 +293,17 @@ func (m model) View() string {
 	// Additional details
 	var detailsContent string
 	if m.showDetails {
-		detailsContent = fmt.Sprintf(
-			"\n%s: %s\n%s: %s",
-			subtitleStyle.Render("Definition"),
-			currentWord.Definition,
-			subtitleStyle.Render("Example"),
-			currentWord.Example,
-		)
+		if m.loadingExample {
+			detailsContent = "\n" + subtitleStyle.Render("Loading example...")
+		} else {
+			detailsContent = fmt.Sprintf(
+				"\n%s: %s\n%s:\n%s",
+				subtitleStyle.Render("Definition"),
+				currentWord.Definition,
+				subtitleStyle.Render("Example"),
+				currentWord.Example,
+			)
+		}
 	}
 
 	// Combine everything
@@ -361,7 +331,97 @@ func (m model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
+// fetchExample makes an API call to OpenAI to get an example sentence
+func fetchExample(word Words.Word, index int) tea.Cmd {
+	return func() tea.Msg {
+		apiKey := getAPIKey()
+
+		// Create the request
+		url := "https://api.openai.com/v1/chat/completions"
+		model := "gpt-3.5-turbo"
+		prompt := fmt.Sprintf("Give me an example phrase in Chinese, Pinyin, and English with the following word: %s", word.Chinese)
+
+		requestBody := map[string]interface{}{
+			"model": model,
+			"messages": []map[string]string{
+				{"role": "user", "content": prompt},
+			},
+		}
+
+		requestData, err := json.Marshal(requestBody)
+		if err != nil {
+			return ExampleMsg{Index: index, Error: err}
+		}
+
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestData))
+		if err != nil {
+			return ExampleMsg{Index: index, Error: err}
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer  %s", apiKey))
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+
+		if err != nil {
+			return ExampleMsg{Index: index, Error: err}
+		}
+		defer resp.Body.Close()
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return ExampleMsg{Index: index, Error: err}
+		}
+
+		// Parse the response
+		var responseData struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		err = json.Unmarshal(body, &responseData)
+		if err != nil {
+			return ExampleMsg{Index: index, Error: err}
+		}
+
+		if responseData.Error.Message != "" {
+			return ExampleMsg{Index: index, Error: fmt.Errorf(responseData.Error.Message)}
+		}
+
+		if len(responseData.Choices) == 0 {
+			return ExampleMsg{Index: index, Error: fmt.Errorf("No choices returned")}
+		}
+
+		example := responseData.Choices[0].Message.Content
+
+		return ExampleMsg{Index: index, Example: example}
+	}
+}
+
+func getAPIKey() string {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		log.Fatal("OPENAI_API_KEY not set in environment variables")
+	}
+	return apiKey
+}
+
+func initEnv() {
+	// Load .env file into environment variables
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+}
+
 func main() {
+	initEnv()
 	p := tea.NewProgram(initialModel())
 	if err := p.Start(); err != nil {
 		fmt.Printf("Error running program: %v", err)
