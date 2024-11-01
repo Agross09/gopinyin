@@ -6,87 +6,133 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// Styling variables
+var (
+	// Color palette
+	colorPrimary    = lipgloss.Color("#2C7BB6") // Soft blue
+	colorSecondary  = lipgloss.Color("#D7191C") // Warm red
+	colorAccent     = lipgloss.Color("#78C679") // Soft green
+	colorBackground = lipgloss.Color("#F7F7F7") // Light gray background
+	colorText       = lipgloss.Color("#333333") // Dark gray text
+
+	// Styles
+	titleStyle = lipgloss.NewStyle().
+			Foreground(colorPrimary).
+			Bold(true).
+			Padding(0, 1)
+
+	subtitleStyle = lipgloss.NewStyle().
+			Foreground(colorAccent).
+			Italic(true)
+
+	cardStyle = lipgloss.NewStyle().
+			Background(colorBackground).
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(colorPrimary).
+			Padding(1, 2)
+
+	helpStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#666")).
+			Italic(true)
+
+	inputStyle = lipgloss.NewStyle().
+			Foreground(colorText).
+			Background(lipgloss.Color("#FFFFFF")).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(colorPrimary).
+			Padding(0, 1)
+
+	focusedInputStyle = inputStyle.Copy().
+				BorderForeground(colorSecondary).
+				Foreground(colorSecondary)
+
+	successStyle = lipgloss.NewStyle().
+			Foreground(colorAccent).
+			Bold(true)
 )
 
 // Word represents a vocabulary entry
 type Word struct {
-	Pinyin      string
-	Chinese     string
-	Definition  string
-	Example     string
+	Pinyin     string
+	Chinese    string
+	Definition string
+	Example    string
 }
 
 // Model represents the application state
 type model struct {
-	words           []Word
-	currentIndex    int
-	showDetails     bool
-	addingNewCard   bool
-	inputs          []textinput.Model
-	focusIndex      int
+	words         []Word
+	currentIndex  int
+	showDetails   bool
+	addingNewCard bool
+	inputs        []textinput.Model
+	focusIndex    int
 }
 
 // Initial word list (placeholder for now)
 var wordList = []Word{
 	{
-		Pinyin:     "ni hao",
+		Pinyin:     "nǐ hǎo",
 		Chinese:    "你好",
 		Definition: "Hello",
-		Example:    "Ni hao, how are you?",
+		Example:    "Nǐ hǎo, how are you?",
 	},
 	{
-		Pinyin:     "xie xie",
+		Pinyin:     "xiè xiè",
 		Chinese:    "谢谢",
 		Definition: "Thank you",
-		Example:    "Xie xie for your help.",
+		Example:    "Xiè xiè for your help.",
 	},
 	{
-		Pinyin:     "zao",
+		Pinyin:     "zǎo",
 		Chinese:    "早",
 		Definition: "Morning",
-		Example:    "Zao, good morning!",
+		Example:    "Zǎo, good morning!",
 	},
 	{
-		Pinyin:     "pengyou",
+		Pinyin:     "péngyou",
 		Chinese:    "朋友",
 		Definition: "Friend",
-		Example:    "Wo de pengyou hen hao.",
+		Example:    "Wǒ de péngyou hěn hǎo.",
 	},
 	{
-		Pinyin:     "chi fan",
+		Pinyin:     "chī fàn",
 		Chinese:    "吃饭",
 		Definition: "Eat meal",
-		Example:    "Women qu chi fan.",
+		Example:    "Wǒmen qù chī fàn.",
 	},
 	{
-		Pinyin:     "hao",
+		Pinyin:     "hǎo",
 		Chinese:    "好",
 		Definition: "Good",
-		Example:    "Hen hao, that's good!",
+		Example:    "Hěn hǎo, that's good!",
 	},
 	{
-		Pinyin:     "shui",
+		Pinyin:     "shuǐ",
 		Chinese:    "水",
 		Definition: "Water",
-		Example:    "Wo yao yi bei shui.",
+		Example:    "Wǒ yào yī bēi shuǐ.",
 	},
 	{
-		Pinyin:     "ai",
+		Pinyin:     "ài",
 		Chinese:    "爱",
 		Definition: "Love",
-		Example:    "Wo ai ni means I love you.",
+		Example:    "Wǒ ài nǐ means I love you.",
 	},
 	{
-		Pinyin:     "ren",
+		Pinyin:     "rén",
 		Chinese:    "人",
 		Definition: "Person",
-		Example:    "Mei ge ren dou bu tong.",
+		Example:    "Měi gè rén dōu bù tóng.",
 	},
 	{
-		Pinyin:     "jia",
+		Pinyin:     "jiā",
 		Chinese:    "家",
 		Definition: "Home/Family",
-		Example:    "Wo de jia zai Beijing.",
+		Example:    "Wǒ de jiā zài Běijīng.",
 	},
 }
 
@@ -104,6 +150,8 @@ func initialModel() model {
 	for i := range m.inputs {
 		t := textinput.New()
 		t.Placeholder = []string{"Chinese Characters", "Pinyin", "Definition", "Example"}[i]
+		t.Prompt = "» "
+		t.CharLimit = 50
 		t.Focus()
 
 		switch i {
@@ -163,15 +211,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Save new card if at least Chinese, Pinyin, and Definition are filled
 				if m.inputs[0].Value() != "" && m.inputs[1].Value() != "" && m.inputs[2].Value() != "" {
 					newWord := Word{
-						Chinese:     m.inputs[0].Value(),
-						Pinyin:      m.inputs[1].Value(),
-						Definition:  m.inputs[2].Value(),
-						Example:     m.inputs[3].Value(),
+						Chinese:    m.inputs[0].Value(),
+						Pinyin:     m.inputs[1].Value(),
+						Definition: m.inputs[2].Value(),
+						Example:    m.inputs[3].Value(),
 					}
 					m.words = append(m.words, newWord)
 					m.addingNewCard = false
 					m.currentIndex = len(m.words) - 1
-					
+
 					// Reset inputs
 					for i := range m.inputs {
 						m.inputs[i].Reset()
@@ -229,45 +277,83 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	// Adding new card view
 	if m.addingNewCard {
-		s := "Add New Vocabulary Card\n\n"
-		
-		for _, input := range m.inputs {
-			s += fmt.Sprintf("%s\n", input.View())
+		s := titleStyle.Render("Add New Vocabulary Card") + "\n\n"
+
+		for i, input := range m.inputs {
+			label := []string{
+				"Chinese Characters:",
+				"Pinyin:",
+				"Definition:",
+				"Example (optional):",
+			}[i]
+
+			// Render input with custom styling
+			var renderedInput string
+			if m.focusIndex == i {
+				renderedInput = focusedInputStyle.Render(input.View())
+			} else {
+				renderedInput = inputStyle.Render(input.View())
+			}
+
+			s += fmt.Sprintf("%s\n%s\n",
+				subtitleStyle.Render(label),
+				renderedInput,
+			)
 		}
 
-		s += "\nTAB: Next field\n"
-		s += "ENTER: Save card\n"
-		s += "ESC: Cancel\n"
-		
+		s += "\n" + helpStyle.Render("TAB: Next field") + "\n"
+		s += helpStyle.Render("ENTER: Save card") + "\n"
+		s += helpStyle.Render("ESC: Cancel") + "\n"
+
 		return s
 	}
 
-	// Normal vocabulary view (similar to previous version)
+	// Normal vocabulary view
 	if len(m.words) == 0 {
 		return "No words available.\n"
 	}
 
 	currentWord := m.words[m.currentIndex]
-	
-	s := fmt.Sprintf("Pinyin Vocab Flashcards (%d/%d)\n\n", m.currentIndex+1, len(m.words))
-	s += fmt.Sprintf("Pinyin: %s\n", currentWord.Pinyin)
-	s += fmt.Sprintf("Chinese: %s\n", currentWord.Chinese)
-	
+
+	// Card content
+	cardContent := fmt.Sprintf(
+		"%s: %s\n%s: %s",
+		titleStyle.Render("Pinyin"),
+		currentWord.Pinyin,
+		titleStyle.Render("Chinese"),
+		currentWord.Chinese,
+	)
+
+	// Additional details
+	var detailsContent string
 	if m.showDetails {
-		s += fmt.Sprintf("\nDefinition: %s\n", currentWord.Definition)
-		s += fmt.Sprintf("Example: %s\n", currentWord.Example)
-	} else {
-		s += "\n(Press SPACE or ENTER to show details)\n"
+		detailsContent = fmt.Sprintf(
+			"\n%s: %s\n%s: %s",
+			subtitleStyle.Render("Definition"),
+			currentWord.Definition,
+			subtitleStyle.Render("Example"),
+			currentWord.Example,
+		)
 	}
 
-	s += "\n\nControls:\n"
-	s += "← / h : Previous word\n"
-	s += "→ / l : Next word\n"
-	s += "SPACE : Toggle details\n"
-	s += "a     : Add new card\n"
-	s += "q     : Quit\n"
+	// Combine everything
+	view := lipgloss.NewStyle().
+		Width(50).
+		Align(lipgloss.Center).
+		Render(
+			titleStyle.Render("Pinyin Vocab Flashcards") +
+				fmt.Sprintf(" (%d/%d)\n\n", m.currentIndex+1, len(m.words)) +
+				cardStyle.Render(cardContent+detailsContent) +
+				"\n\n" +
+				helpStyle.Render("Controls:") + "\n" +
+				fmt.Sprintf("← / h : Previous word \n") +
+				fmt.Sprintf("→ / l : Next word     \n") +
+				fmt.Sprintf("SPACE : Toggle details\n") +
+				fmt.Sprintf("a     : Add new card  \n") +
+				fmt.Sprintf("q     : Quit          \n"),
+		)
 
-	return s
+	return view
 }
 
 // Initialize method
