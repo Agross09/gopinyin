@@ -20,11 +20,12 @@ import (
 // Styling variables
 var (
 	// Color palette
-	colorPrimary    = lipgloss.Color("#2C7BB6") // Soft blue
-	colorSecondary  = lipgloss.Color("#D7191C") // Warm red
-	colorAccent     = lipgloss.Color("#78C679") // Soft green
-	colorBackground = lipgloss.Color("#F7F7F7") // Light gray background
-	colorText       = lipgloss.Color("#333333") // Dark gray text
+	colorPrimary          = lipgloss.Color("#2C7BB6") // Soft blue
+	colorSecondary        = lipgloss.Color("#D7191C") // Warm red
+	colorAccent           = lipgloss.Color("#1A9641") // Dark green
+	colorBackground       = lipgloss.Color("#F7F7F7") // Light gray background
+	colorText             = lipgloss.Color("#333333") // Dark gray text
+	transparentBackground = lipgloss.Color("transparent")
 
 	// Styles
 	titleStyle = lipgloss.NewStyle().
@@ -36,8 +37,18 @@ var (
 			Foreground(colorAccent).
 			Italic(true)
 
+	subtitleRedStyle = lipgloss.NewStyle().
+				Foreground(colorSecondary).
+				Italic(true)
+
+	subtitleDarkStyle = lipgloss.NewStyle().
+				Foreground(colorPrimary).
+				Italic(true)
+
+	exampleTextStyle = lipgloss.NewStyle()
+
 	cardStyle = lipgloss.NewStyle().
-			Background(colorBackground).
+			Background(transparentBackground).
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(colorPrimary).
 			Padding(1, 2)
@@ -47,15 +58,13 @@ var (
 			Italic(true)
 
 	inputStyle = lipgloss.NewStyle().
-			Foreground(colorText).
-			Background(lipgloss.Color("#FFFFFF")).
+			Background(transparentBackground).
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(colorPrimary).
 			Padding(0, 1)
 
 	focusedInputStyle = inputStyle.Copy().
-				BorderForeground(colorSecondary).
-				Foreground(colorSecondary)
+				BorderForeground(colorSecondary)
 
 	successStyle = lipgloss.NewStyle().
 			Foreground(colorAccent).
@@ -284,24 +293,24 @@ func (m model) View() string {
 	// Card content
 	cardContent := fmt.Sprintf(
 		"%s: %s\n%s: %s",
-		titleStyle.Render("Pinyin"),
-		currentWord.Pinyin,
-		titleStyle.Render("Chinese"),
-		currentWord.Chinese,
+		subtitleStyle.Render("Pinyin"),
+		exampleTextStyle.Render(currentWord.Pinyin),
+		subtitleRedStyle.Render("Chinese"),
+		exampleTextStyle.Render(currentWord.Chinese),
 	)
 
 	// Additional details
 	var detailsContent string
 	if m.showDetails {
 		if m.loadingExample {
-			detailsContent = "\n" + subtitleStyle.Render("Loading example...")
+			detailsContent = "\n" + subtitleDarkStyle.Render("Loading example...")
 		} else {
 			detailsContent = fmt.Sprintf(
-				"\n%s: %s\n%s:\n%s",
-				subtitleStyle.Render("Definition"),
-				currentWord.Definition,
-				subtitleStyle.Render("Example"),
-				currentWord.Example,
+				"\n%s: %s\n\n%s\n%s",
+				subtitleDarkStyle.Render("Definition"),
+				exampleTextStyle.Render(currentWord.Definition),
+				subtitleDarkStyle.Render("Example"),
+				exampleTextStyle.Render(currentWord.Example),
 			)
 		}
 	}
